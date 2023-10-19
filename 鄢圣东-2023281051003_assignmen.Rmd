@@ -1,0 +1,223 @@
+---
+title: "商务统计分析1st_assignment"
+author: "鄢圣东 2023281051003"
+date: "`r Sys.Date()`"
+header-includes:
+  - \usepackage{ctex}
+output:
+  pdf_document:
+    includes:
+      keep_tex: yes
+    latex_engine: xelatex
+  word_document: default
+---
+
+```{r setup, include = FALSE,echo = FALSE}
+knitr::opts_chunk$set(echo = FALSE,error = FALSE, warning = FALSE, message = FALSE,
+                      out.width = "100%", split = FALSE, fig.align = "center")
+pdf.options(family="GB1")
+#load library
+
+library(tidyverse)
+#library(kableExtra)
+library(lubridate)
+library(scales)
+library(ggmap)
+library(plotly)
+library(patchwork)
+library(ggrepel)
+```
+
+
+
+# 数据介绍
+
+本报告**链家**数据获取方式如下：
+
+报告人在2023年9月12日获取了[链家武汉二手房网站](https://wh.lianjia.com/ershoufang/)数据。
+
+-   链家二手房网站默认显示100页，每页30套房产，因此本数据包括3000套房产信息；
+
+-   数据包括了页面可见部分的文本信息，具体字段及说明见作业说明。
+
+**说明：**数据仅用于教学；由于不清楚链家数据的展示规则，因此数据可能并不是武汉二手房市场的随机抽样，结论很可能有很大的偏差，甚至可能是错误的。
+
+```{r}
+# 载入数据和预处理
+lj<- read_csv("C:/武大作业/1st-assignment-main/data/2023-09-12_cleaned.csv")
+# EDA ---------------------------------------------------------------------
+
+## 如下语句可以解决画图中的中文显示问题，当然你可以用showtext包来解决
+
+theme_set(theme(text = element_text(family="Arial",size = 10))) #这里family设置成你系统中的中文字体名。
+
+# 做一些数据预处理，比如把字符型变成factor。
+
+```
+
+# 数据概览
+
+数据表（lj)共包括`r names(lj)`等`r ncol(lj)`个变量,共`r nrow(lj)`行。表的前10行示例如下：
+
+```{r}
+lj %>% 
+  head(10)
+```
+
+各变量的简短信息：
+
+```{r}
+glimpse(lj)
+```
+
+各变量的简短统计：
+
+```{r}
+summary(lj)
+```
+
+可以看到：
+
+-   直观结论1
+
+数据中有3000套住房信息。 价格特征： 1、房屋总价平均价格为155.9万/套，价格主要分布在95.0\~188.0万/套，最贵一套为1380.0万，最便宜一套为10.6万 2、房屋每平米价格均价为14404元/平方米，价格主要分布在10799\~18211元/平方米，最贵一套为44656元/平方米，最便宜一套1771元/平方米 
+- 直观结论2
+2 房型特征： 1、3000套房屋中卧室平均个数约为2.7个，住房中卧室个数主要分布在2\~3个，最小卧室数量为1个，最大卧室数量为7个。 2、3000套房屋中卫生间平均个数为1.7个，住房中卫生间个数主要分布在1\~2个，最小卫生间数量为1个，最大数量/为4个。 3、3000套房屋平均面积为100.87平方米，面积大小主要分布在84.92\~117.68平方米，最小面积为22.77， 最大面积为588.66 平方米 
+- 直观结论3
+3楼型特征：
+1、3000套房屋所在楼层平均数约在24.22层，所在楼层主要分布11\~33层之间，最小楼层为2，最大楼层为62层 2、3000套房屋所在楼层电梯数量平均数为6.6个，电梯数量主要分布在1\~6个之间，有的住宅没有电梯，最大电梯数量为 262个。
+
+# 探索性分析
+
+## 变量price_ttl 的数值描述与图形
+
+
+price_ttl的数据特征
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   10.6    95.0   137.0   155.9   188.0  1380.0 
+-   直方图
+发现：
+根据直方图图形显示数据分布情况,概率密度曲线基本满足正态分布趋势，曲线更高更窄，数据更加集中，并且向右偏移。
+```{r}
+  total_price <- lj$price_ttl
+  ggplot(data=lj,aes(x = total_price))+
+  scale_x_continuous(limits = c(0,800))+
+  geom_histogram(aes(y = ..density..), bins = 20, color = "grey",)+
+  stat_density(aes(group = 1),lwd =0.8, fill = NA, color = "red") + 
+  stat_function(fun = function(x) dnorm(x, mean = 155.9,sd=95.54813),lwd =0.8, col = "blue")+theme_bw()
+
+```
+-   箱型图
+发现：箱线图展示了变量的4分位以及上下分界，价格集中区域。
+```{r}
+ ggplot(data.frame(x=lj$price_ttl),aes(x))+
+  stat_boxplot(geom="errorbar",width=0.6,aes(x=lj$price_ttl))+
+  geom_boxplot()+
+  geom_vline(xintercept = quantile(lj$price_ttl,0.25),color = "blue") +
+  geom_vline(xintercept = quantile(lj$price_ttl,0.75),color = "green") +
+  geom_vline(xintercept =  quantile(lj$price_ttl,0.75)  + IQR(lj$price_ttl) * 1.5  ,color = "yellow")+
+  geom_vline(xintercept =  quantile(lj$price_ttl,0.25)  - IQR(lj$price_ttl) * 1.5  ,color = "black") +
+  geom_vline(xintercept =  min(lj$price_ttl)  ,color = "black")+
+  scale_x_continuous(breaks = seq(0, 1500, by = 100))+theme_bw() 
+
+```
+
+## 变量building_area的数值描述与图形
+
+building_area数值特征
+ Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  22.77   84.92   95.55  100.87  117.68  588.66 
+- 箱型图
+发现：住房面积主要集中与80万元与120万元之间,其中集中区域非常集中。
+```{r}
+ building_area <- lj$building_area
+  ggplot(data=lj,aes(x = building_area))+
+  scale_x_continuous(limits = c(0,800))+
+  geom_histogram(aes(y = ..density..), bins = 30, color = "grey",)+
+  stat_density(aes(group = 1),lwd =0.8, fill = NA, color = "red") + 
+  stat_function(fun = function(x) dnorm(x, mean = 100.87 ,sd=30.38),lwd =0.8, col = "blue") +theme_bw() 
+
+
+```
+- 直方图
+发现：图形中密度曲线满足正态分布趋势
+```{r}
+  building_area <- lj$building_area
+  ggplot(data=lj,aes(x = building_area))+
+  scale_x_continuous(limits = c(0,800))+
+  geom_histogram(aes(y = ..density..), bins = 30, color = "grey",)+
+  stat_density(aes(group = 1),lwd =0.8, fill = NA, color = "red") + 
+  stat_function(fun = function(x) dnorm(x, mean = 100.87 ,sd=30.38),lwd =0.8, col = "blue") +theme_bw()
+
+
+```
+
+
+
+
+## 变量livingrooms的数值描述与图形
+变量livingrooms数值特征
+summary(lj$livingrooms)
+ Min.   1st Qu.  Median    Mean   3rd Qu.     Max. 
+0.000   1.000    2.000    1.709    2.000     4.000 
+— 条形图
+发现：房屋中卧室数量为2的房屋数量最多，超过样本数量的70%。
+```{r}
+  livingrooms<- lj$livingrooms
+  ggplot(data=lj,aes(x = livingrooms))+
+  scale_x_continuous(limits = c(0,6))+
+  geom_bar(aes(y = ..prop..,group=1),bins = 1, color = "grey",)+theme_bw()
+```
+
+## 住房单价与住房面积存在什么关系
+
+发现一：住房面积越大，房屋的单价就越高，具有正相关性。所以所购买的房子越大，其单价越贵，其总价也就越高，对于购房者也许要考虑房子面积大小所带来的房子单价的上涨趋势。
+
+```{r}
+  lj %>% 
+  filter(price_ttl<1000)%>% 
+  ggplot(aes(building_area,price_sqm))+
+  geom_point()+geom_smooth(formula = 'y ~ x',method  ="lm",se=FALSE)+
+  theme_bw()
+
+```
+
+
+
+
+## 在武汉人们主要考虑的购房单价是多少
+发现：
+1.看房人数前50的的房子的单价基本集中于1.1万元到2万元之间，这个区间是人们的刚性需求。
+
+```{r}
+  lj_followers <- lj  %>% arrange(desc(followers)) %>% head(50)
+  ggplot(data.frame(x=lj_followers$price_sqm),aes(x))+
+  stat_boxplot(geom="errorbar",width=0.6,aes(x=lj_followers$price_sqm))+
+  geom_boxplot(outlier.shape = NA)+theme_bw()
+  
+    
+```
+
+## 装修风格对住房价格的影响
+发现：
+1、二手房市场绝大多是精装房，这表明大多数出售的房屋为自住房，而不是用来炒作的出租房或者炒房。
+2、简装房和毛坯房单价集中区域基本相同，说明这部分房产具有共性，而精装房价格明显高于其他。
+```{r} 
+  p1 <- lj %>% 
+  ggplot(aes(x=decoration, fill=decoration)) +
+  geom_bar(aes(y = ..prop..,group=1),bins = 1, color = "grey",)+theme_bw()
+  
+  p2 <- ggplot(data=lj,aes(x=lj$decoration,y=lj$price_sqm))+
+  stat_boxplot(geom="errorbar",width=0.6,aes(x=lj$decoration,y=lj$price_sqm))+geom_boxplot()+labs(title="单价与装修关系")+theme_bw()
+  p1+p2
+  
+```
+------------------------------------------------------------------------
+
+# 发现总结
+
+通过的对数据的分析，我发现了如下几点：
+1、二手房市场房源的总价格区间主要集中80~130万元区，其中热门房源的单价区间在1.1~2万元之间，说明武汉当地第一套房的刚需住房条件，后续为改善生活出售第一套房产情况最多。
+2、房屋价值的影响：房子面积越大，房子单价会被抬高。精装相比与其他装修方式，房子单价也会高于其他。
+3、通过市场的装修风格的分析，大部分的二手房源为自住房，因为绝大多是自己居住，才会在装修投入更多。
+
